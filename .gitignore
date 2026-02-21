@@ -1,6 +1,9 @@
 # Gradle
 .gradle/
-build/
+# Ignore build outputs except final libs
+build/**
+!build/libs/
+!build/libs/**
 out/
 !gradle/wrapper/gradle-wrapper.jar
 debug*.gradle
