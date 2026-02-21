@@ -1,0 +1,7 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "tennisball:item/tennis_ball",
+    "layer1": "tennisball:item/tennis_ball_explosive_overlay"
+  }
+}

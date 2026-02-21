@@ -60,15 +60,21 @@ flowchart TD
 
 ## Running in Development
 
-1. Import the project in your IDE (IntelliJ IDEA recommended)
+1. Import the project in your IDE
 2. Run the Minecraft client task:
    ```bash
    ./gradlew runClient
    ```
+    2a. Optionally build with
+    ```bash
+    ./gradlew build
+    ```
 
 ## Usage in Game
 
 1. Find the Tennis Ball in the Tools creative tab
+    
+    `/give @p tennisball:tennis_ball` or `/give @p tennisball:tennis_ball_explosive`
 2. Right-click to throw it
 3. Watch it bounce realistically!
 4. The ball will disappear after losing momentum

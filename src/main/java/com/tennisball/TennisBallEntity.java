@@ -11,6 +11,7 @@ import net.minecraft.world.World;
 
 public class TennisBallEntity extends ThrownItemEntity {
     private int lastBounceSoundTick = -3;
+    private boolean explosive = false;
 
     public TennisBallEntity(EntityType<? extends TennisBallEntity> entityType, World world) {
         super(entityType, world);
@@ -18,6 +19,11 @@ public class TennisBallEntity extends ThrownItemEntity {
 
     public TennisBallEntity(World world, LivingEntity owner, ItemStack stack) {
         super(TennisBallBridge.entityType(), owner, world, stack);
+    }
+
+    public TennisBallEntity(World world, LivingEntity owner, ItemStack stack, boolean explosive) {
+        super(TennisBallBridge.entityType(), owner, world, stack);
+        this.explosive = explosive;
     }
 
     @Override
@@ -58,5 +64,9 @@ public class TennisBallEntity extends ThrownItemEntity {
 
     public void tennisballSetLastBounceSoundTick(int tick) {
         this.lastBounceSoundTick = tick;
+    }
+
+    public boolean tennisballIsExplosive() {
+        return this.explosive;
     }
 }

@@ -16,6 +16,7 @@ public final class TennisBallRegistry {
 
     public static EntityType<TennisBallEntity> TENNIS_BALL_ENTITY_TYPE;
     public static Item TENNIS_BALL_ITEM;
+    public static Item TENNIS_BALL_EXPLOSIVE_ITEM;
 
     private static boolean registered = false;
 
@@ -49,6 +50,18 @@ public final class TennisBallRegistry {
                 Registries.ITEM,
                 itemId,
                 new TennisBallItem(settings)
+        );
+
+        Identifier explosiveItemId = Identifier.of(MOD_ID, "tennis_ball_explosive");
+        RegistryKey<Item> explosiveItemKey = RegistryKey.of(RegistryKeys.ITEM, explosiveItemId);
+        Item.Settings explosiveSettings = new Item.Settings()
+                .registryKey(explosiveItemKey)
+                .maxCount(16);
+
+        TENNIS_BALL_EXPLOSIVE_ITEM = Registry.register(
+                Registries.ITEM,
+                explosiveItemId,
+                new TennisBallItem(explosiveSettings, true)
         );
 
         registered = true;

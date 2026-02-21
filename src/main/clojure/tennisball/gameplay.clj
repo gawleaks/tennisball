@@ -14,7 +14,7 @@
            [net.minecraft.util ActionResult Hand Identifier]
            [net.minecraft.util.hit BlockHitResult EntityHitResult]
            [net.minecraft.util.math Direction Vec3d]
-           [net.minecraft.world World]))
+           [net.minecraft.world World World$ExplosionSourceType]))
 
 (def mod-id "tennisball")
 
@@ -23,6 +23,7 @@
 (def min-speed-to-bounce 0.08)
 (def max-lifetime-ticks (* 20 30))
 (def bounce-sound-cooldown-ticks 3)
+(def explosive-power 2.0)
 
 (defonce registry-state (atom {:registered? false
                                :entity-type nil
@@ -98,7 +99,9 @@
 
     (when (instance? ServerWorld world)
       (let [^ServerWorld server-world world
-            ball-entity (TennisBallEntity. server-world user (.copyWithCount stack 1))]
+            explosive? (and (instance? TennisBallItem item)
+                            (.isExplosive ^TennisBallItem item))
+            ball-entity (TennisBallEntity. server-world user (.copyWithCount stack 1) explosive?)]
         (.setVelocity ball-entity user (.getPitch user) (.getYaw user) (float 0.0) (float 1.25) (float 0.3))
         (.spawnEntity server-world ball-entity)
 
@@ -111,6 +114,18 @@
 
 (defn entity-gravity [_entity]
   0.035)
+
+(defn- explode-and-discard! [^TennisBallEntity entity]
+  (let [world (.getWorld entity)]
+    (when (instance? ServerWorld world)
+      (.createExplosion ^ServerWorld world
+                        entity
+                        (.getX entity)
+                        (.getY entity)
+                        (.getZ entity)
+                        (float explosive-power)
+                        World$ExplosionSourceType/TNT))
+    (.discard entity)))
 
 (defn entity-tick [^TennisBallEntity entity]
   (when (> (.tennisballGetAge entity) max-lifetime-ticks)
@@ -130,54 +145,58 @@
         (.discard entity)))))
 
 (defn entity-on-block-hit [^TennisBallEntity entity ^BlockHitResult hit-result]
-  (let [velocity (.getVelocity entity)
+  (if (.tennisballIsExplosive entity)
+    (explode-and-discard! entity)
+    (let [velocity (.getVelocity entity)
         side (.getSide hit-result)]
-    (if (and (= side Direction/UP) (< (Math/abs (.y velocity)) 0.08))
-      (.setVelocity entity (* (.x velocity) 0.88) 0.0 (* (.z velocity) 0.88))
-      (let [normal (Vec3d/of (.getVector side))
-            dot (.dotProduct velocity normal)
-            reflected (.multiply (.subtract velocity (.multiply normal (* 2.0 dot))) bounce-damping)
-            reflected (if (and (= side Direction/UP) (> (.y reflected) 0.0))
-                        (Vec3d. (* (.x reflected) 0.95)
-                                (* (.y reflected) 0.85)
-                                (* (.z reflected) 0.95))
-                        reflected)
-            min-speed-sq (* min-speed-to-bounce min-speed-to-bounce)
-            final-velocity (if (< (.lengthSquared reflected) min-speed-sq)
-                             (if (= side Direction/UP)
-                               (Vec3d. (* (.x reflected) 0.5) 0.0 (* (.z reflected) 0.5))
-                               nil)
-                             reflected)]
-        (if (nil? final-velocity)
-          (.discard entity)
-          (do
-            (.setVelocity entity final-velocity)
-            (.setPosition entity (.add (.getPos entity) (.multiply normal 0.01)))
-            (when (and (not (.isSilent entity))
-                       (>= (- (.tennisballGetAge entity) (.tennisballGetLastBounceSoundTick entity))
-                           bounce-sound-cooldown-ticks)
-                       (> (.lengthSquared reflected) (* 0.02 0.02)))
-              (.playSound (.getWorld entity)
-                          nil
-                          (.getX entity)
-                          (.getY entity)
-                          (.getZ entity)
-                          SoundEvents/BLOCK_SLIME_BLOCK_HIT
-                          SoundCategory/NEUTRAL
-                          (float 0.25)
-                          (float (+ 1.5 (* (- (.nextFloat (.getRandom entity)) 0.5) 0.2))))
-              (.tennisballSetLastBounceSoundTick entity (.tennisballGetAge entity)))))))))
+      (if (and (= side Direction/UP) (< (Math/abs (.y velocity)) 0.08))
+        (.setVelocity entity (* (.x velocity) 0.88) 0.0 (* (.z velocity) 0.88))
+        (let [normal (Vec3d/of (.getVector side))
+              dot (.dotProduct velocity normal)
+              reflected (.multiply (.subtract velocity (.multiply normal (* 2.0 dot))) bounce-damping)
+              reflected (if (and (= side Direction/UP) (> (.y reflected) 0.0))
+                          (Vec3d. (* (.x reflected) 0.95)
+                                  (* (.y reflected) 0.85)
+                                  (* (.z reflected) 0.95))
+                          reflected)
+              min-speed-sq (* min-speed-to-bounce min-speed-to-bounce)
+              final-velocity (if (< (.lengthSquared reflected) min-speed-sq)
+                               (if (= side Direction/UP)
+                                 (Vec3d. (* (.x reflected) 0.5) 0.0 (* (.z reflected) 0.5))
+                                 nil)
+                               reflected)]
+          (if (nil? final-velocity)
+            (.discard entity)
+            (do
+              (.setVelocity entity final-velocity)
+              (.setPosition entity (.add (.getPos entity) (.multiply normal 0.01)))
+              (when (and (not (.isSilent entity))
+                         (>= (- (.tennisballGetAge entity) (.tennisballGetLastBounceSoundTick entity))
+                             bounce-sound-cooldown-ticks)
+                         (> (.lengthSquared reflected) (* 0.02 0.02)))
+                (.playSound (.getWorld entity)
+                            nil
+                            (.getX entity)
+                            (.getY entity)
+                            (.getZ entity)
+                            SoundEvents/BLOCK_SLIME_BLOCK_HIT
+                            SoundCategory/NEUTRAL
+                            (float 0.25)
+                            (float (+ 1.5 (* (- (.nextFloat (.getRandom entity)) 0.5) 0.2))))
+                (.tennisballSetLastBounceSoundTick entity (.tennisballGetAge entity))))))))))
 
 (defn entity-on-entity-hit [^TennisBallEntity entity ^EntityHitResult hit-result]
-  (let [target (.getEntity hit-result)
-        world (.getWorld entity)]
-    (when (instance? ServerWorld world)
-      (let [^ServerWorld server-world world
-            ^DamageSource damage-source (.thrown (.getDamageSources entity) entity (.getOwner entity))]
-        (.damage target server-world damage-source (float 1.0))))
+  (if (.tennisballIsExplosive entity)
+    (explode-and-discard! entity)
+    (let [target (.getEntity hit-result)
+          world (.getWorld entity)]
+      (when (instance? ServerWorld world)
+        (let [^ServerWorld server-world world
+              ^DamageSource damage-source (.thrown (.getDamageSources entity) entity (.getOwner entity))]
+          (.damage target server-world damage-source (float 1.0))))
 
-    (let [bounced (.multiply (.getVelocity entity) -0.55 0.45 -0.55)]
-      (.setVelocity entity
-                    (.x bounced)
-                    (max 0.08 (Math/abs (.y bounced)))
-                    (.z bounced)))))
+      (let [bounced (.multiply (.getVelocity entity) -0.55 0.45 -0.55)]
+        (.setVelocity entity
+                      (.x bounced)
+                      (max 0.08 (Math/abs (.y bounced)))
+                      (.z bounced))))))
