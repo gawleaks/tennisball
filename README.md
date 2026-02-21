@@ -25,7 +25,9 @@ To build the mod:
 ./gradlew build
 ```
 
-The compiled mod JAR will be in `build/libs/`
+The compiled mod JAR will be in `build/libs/`.
+
+Note: this project currently publishes the release artifact by copying the validated jar output into `build/libs/` during `assemble` (instead of using Loom remap output), because remap artifacts were producing empty jars in this setup.
 
 ## Development
 

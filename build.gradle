@@ -45,29 +45,34 @@ java {
 }
 
 jar {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from("LICENSE") {
         rename { "${it}_${project.name}"}
     }
-    
-    // Explicitly grab source files to ensure they are present
-    from("src/main/resources") {
-        include "**/*"
-    }
-    from("src/main/clojure") {
-        include "**/*"
-    }
-    from sourceSets.main.output.classesDirs
 }
 
-// Ensure remapJar includes resources and source files if they are stripped
 tasks.named("remapJar") {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    from sourceSets.main.output.resourcesDir
-    from("src/main/clojure")
+    enabled = false
 }
 
+tasks.named("remapSourcesJar") {
+    enabled = false
+}
 
+tasks.register("releaseJar", Copy) {
+    dependsOn tasks.named("jar")
+    from(tasks.named("jar").flatMap { it.archiveFile })
+    into(layout.buildDirectory.dir("libs"))
+    rename { it.replace("-dev.jar", ".jar") }
+}
 
+tasks.register("releaseSourcesJar", Copy) {
+    dependsOn tasks.named("sourcesJar")
+    from(tasks.named("sourcesJar").flatMap { it.archiveFile })
+    into(layout.buildDirectory.dir("libs"))
+}
 
+tasks.named("assemble") {
+    dependsOn tasks.named("releaseJar")
+    dependsOn tasks.named("releaseSourcesJar")
+}
 
