@@ -1,0 +1,64 @@
+# Gradle
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+debug*.gradle
+
+# Loom / Fabric run directory
+run/
+
+# Java / JVM
+*.class
+hs_err_pid*
+replay_pid*
+
+# Logs
+logs/
+*.log
+
+# IDE - IntelliJ / JetBrains
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# IDE - VS Code
+.vscode/
+
+# Eclipse
+.project
+.classpath
+.settings/
+bin/
+
+# macOS
+.DS_Store
+
+# Env / local overrides
+.env
+.env.*
+*.local
+
+# Misc temp
+tmp/
+temp/
+*.swp
+*.swo
+
+# Eclipse / Java extras
+.factorypath
+.apt_generated/
+.apt_generated_tests/
+.springBeans
+.recommenders/
+.externalToolBuilders/
+
+# Clojure / tooling caches
+.clj-kondo/
+.lsp/
+
+# Local backup files
+*.bak
+*-backup.png
+*.orig

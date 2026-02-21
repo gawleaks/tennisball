@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "tennisball",
+  "version": "${version}",
+  "name": "Tennis Ball Mod",
+  "description": "Adds a throwable tennis ball to Minecraft",
+  "authors": ["You"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/tennisball/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.tennisball.TennisBallMod"],
+    "client": ["com.tennisball.TennisBallModClient"]
+  },
+  "mixins": [],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.4",
+    "java": ">=17",
+    "fabric-api": "*"
+  }
+}
