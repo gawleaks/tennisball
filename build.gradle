@@ -22,8 +22,11 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     
-    // Clojure dependencies
+    // Clojure runtime (bundled into the mod jar for real Minecraft runtime)
     implementation "org.clojure:clojure:1.11.1"
+    include "org.clojure:clojure:1.11.1"
+    include "org.clojure:spec.alpha:0.3.218"
+    include "org.clojure:core.specs.alpha:0.2.62"
 }
 
 processResources {
@@ -45,8 +48,22 @@ java {
 }
 
 jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
     from("LICENSE") {
         rename { "${it}_${project.name}"}
+    }
+
+    from({
+        configurations.runtimeClasspath
+            .findAll { f ->
+                f.name.startsWith("clojure-") ||
+                f.name.startsWith("spec.alpha-") ||
+                f.name.startsWith("core.specs.alpha-")
+            }
+            .collect { zipTree(it) }
+    }) {
+        exclude "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA"
     }
 }
 
@@ -75,4 +92,3 @@ tasks.named("assemble") {
     dependsOn tasks.named("releaseJar")
     dependsOn tasks.named("releaseSourcesJar")
 }
-
