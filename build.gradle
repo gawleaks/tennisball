@@ -1,7 +1,6 @@
 plugins {
-    id 'fabric-loom' version '1.8-SNAPSHOT'
+    id 'fabric-loom' version '1.8.13'
     id 'maven-publish'
-    id 'dev.clojurephant.clojure' version '0.8.0-beta.7'
 }
 
 version = project.mod_version
@@ -22,11 +21,29 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     
-    // Clojure runtime (bundled into the mod jar for real Minecraft runtime)
+    // Clojure runtime - bundled into the mod jar
     implementation "org.clojure:clojure:1.11.1"
-    include "org.clojure:clojure:1.11.1"
-    include "org.clojure:spec.alpha:0.3.218"
-    include "org.clojure:core.specs.alpha:0.2.62"
+    implementation "org.clojure:spec.alpha:0.3.218"
+    implementation "org.clojure:core.specs.alpha:0.2.62"
+
+    // Tiny remapper for manual remap task
+    implementation "net.fabricmc:tiny-remapper:0.10.4"
+    implementation "net.fabricmc:mapping-io:0.7.1"
+    implementation "org.ow2.asm:asm:9.7.1"
+    implementation "org.ow2.asm:asm-commons:9.7.1"
+    implementation "org.ow2.asm:asm-tree:9.7.1"
+    implementation "org.ow2.asm:asm-analysis:9.7.1"
+    implementation "org.ow2.asm:asm-util:9.7.1"
+    implementation "com.google.guava:guava:33.3.1-jre"
+    implementation "com.google.code.gson:gson:2.11.0"
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDir "src/main/clojure"
+        }
+    }
 }
 
 processResources {
@@ -39,6 +56,7 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
     it.options.release = 17
+    it.options.debug = false
 }
 
 java {
@@ -54,6 +72,7 @@ jar {
         rename { "${it}_${project.name}"}
     }
 
+    // Bundle Clojure runtime
     from({
         configurations.runtimeClasspath
             .findAll { f ->
@@ -67,6 +86,7 @@ jar {
     }
 }
 
+// Disable broken Loom remap tasks
 tasks.named("remapJar") {
     enabled = false
 }
@@ -75,20 +95,107 @@ tasks.named("remapSourcesJar") {
     enabled = false
 }
 
-tasks.register("releaseJar", Copy) {
-    dependsOn tasks.named("jar")
-    from(tasks.named("jar").flatMap { it.archiveFile })
-    into(layout.buildDirectory.dir("libs"))
-    rename { it.replace("-dev.jar", ".jar") }
+// Custom remap task that only remaps Java classes (not Clojure runtime)
+tasks.register("customRemapJar") {
+    dependsOn tasks.jar
+    group = "build"
+    description = "Remaps Java classes from named to intermediary, keeps Clojure classes unchanged"
+    
+    def inputJar = tasks.jar.archiveFile
+    def outputJar = layout.buildDirectory.file("libs/${archives_base_name}-${project.version}.jar")
+    
+    inputs.file(inputJar)
+    outputs.file(outputJar)
+    
+    doLast {
+        def workDir = layout.buildDirectory.dir("tmp/customRemap").get().asFile
+        workDir.mkdirs()
+        
+        // Find mappings
+        def mappingsCandidates = fileTree("${gradle.gradleUserHomeDir}/caches/fabric-loom/${project.minecraft_version}") {
+            include "**/mappings.tiny"
+        }.files
+        if (mappingsCandidates.isEmpty()) {
+            throw new GradleException("Cannot find mappings.tiny in Gradle cache")
+        }
+        def mappingsTiny = mappingsCandidates.iterator().next()
+        
+        // Find minecraft merged jar
+        def minecraftMergedCandidates = fileTree("${projectDir}/.gradle/loom-cache/minecraftMaven/net/minecraft") {
+            include "**/minecraft-merged-*.jar"
+        }.files
+        if (minecraftMergedCandidates.isEmpty()) {
+            throw new GradleException("Cannot find minecraft-merged jar in Loom cache")
+        }
+        def minecraftMerged = minecraftMergedCandidates.iterator().next()
+        
+        // Split JAR into Java-only (includes metadata, assets) and track Clojure classes
+        def javaOnlyJar = new File(workDir, "java-only.jar")
+        def javaRemappedJar = new File(workDir, "java-remapped.jar")
+        def clojureListFile = new File(workDir, "clojure-classes.txt")
+        
+        // Extract only non-Clojure files for remapping
+        copy {
+            from(zipTree(inputJar.get().asFile))
+            into(new File(workDir, "extracted"))
+        }
+        
+        // Identify Clojure classes
+        def extractedDir = new File(workDir, "extracted")
+        def clojureClasses = []
+        extractedDir.eachFileRecurse { f ->
+            if (f.isFile() && f.name.endsWith(".class") && f.path.contains("/clojure/")) {
+                clojureClasses << f.path.substring(extractedDir.path.length() + 1)
+            }
+        }
+        clojureListFile.text = clojureClasses.join("\n")
+        
+        // Create Java-only JAR (everything except clojure/ classes)
+        ant.zip(destfile: javaOnlyJar) {
+            fileset(dir: extractedDir) {
+                exclude(name: "clojure/**")
+            }
+        }
+        
+        // Remap Java classes only using ant
+        def remapperClasspath = configurations.runtimeClasspath.filter { f ->
+            f.name.contains("tiny-remapper") ||
+            f.name.contains("mapping-io") ||
+            f.name.startsWith("asm-") ||
+            f.name.contains("guava") ||
+            f.name.contains("gson")
+        }.asPath
+        
+        ant.java(classname: 'net.fabricmc.tinyremapper.Main', classpath: remapperClasspath, fork: true, failonerror: true) {
+            arg(value: javaOnlyJar.absolutePath)
+            arg(value: javaRemappedJar.absolutePath)
+            arg(value: mappingsTiny.absolutePath)
+            arg(value: 'named')
+            arg(value: 'intermediary')
+            arg(value: minecraftMerged.absolutePath)
+        }
+        
+        // Combine remapped Java + original Clojure
+        ant.zip(destfile: outputJar.get().asFile) {
+            zipfileset(src: javaRemappedJar)
+            zipfileset(dir: extractedDir, includes: "clojure/**")
+        }
+        
+        // Cleanup
+        delete(extractedDir)
+        
+        println "Created remapped JAR: ${outputJar.get().asFile}"
+    }
 }
 
 tasks.register("releaseSourcesJar", Copy) {
-    dependsOn tasks.named("sourcesJar")
-    from(tasks.named("sourcesJar").flatMap { it.archiveFile })
+    dependsOn tasks.sourcesJar
+    from(tasks.sourcesJar.archiveFile)
     into(layout.buildDirectory.dir("libs"))
+    rename { it.replace("-dev-sources.jar", "-sources.jar") }
 }
 
 tasks.named("assemble") {
-    dependsOn tasks.named("releaseJar")
+    dependsOn tasks.named("customRemapJar")
     dependsOn tasks.named("releaseSourcesJar")
 }
