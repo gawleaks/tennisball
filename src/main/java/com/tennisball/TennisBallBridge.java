@@ -2,10 +2,8 @@ package com.tennisball;
 
 import clojure.java.api.Clojure;
 import clojure.lang.IFn;
-import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.client.render.entity.FlyingItemEntityRenderer;
 import net.minecraft.item.Item;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -37,10 +35,6 @@ public final class TennisBallBridge {
 
     public static void registerGameplay() {
         TennisBallRegistry.register();
-    }
-
-    public static void registerClientRenderer() {
-        EntityRendererRegistry.register(TennisBallRegistry.TENNIS_BALL_ENTITY_TYPE, FlyingItemEntityRenderer::new);
     }
 
     public static EntityType<TennisBallEntity> entityType() {

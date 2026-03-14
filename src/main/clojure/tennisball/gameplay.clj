@@ -1,8 +1,6 @@
 (ns tennisball.gameplay
   (:import [com.tennisball TennisBallEntity TennisBallItem]
-           [net.fabricmc.fabric.api.client.rendering.v1 EntityRendererRegistry]
            [net.fabricmc.fabric.api.object.builder.v1.entity FabricEntityTypeBuilder]
-           [net.minecraft.client.render.entity FlyingItemEntityRenderer]
            [net.minecraft.entity EntityDimensions EntityType EntityType$EntityFactory SpawnGroup]
            [net.minecraft.entity.damage DamageSource]
            [net.minecraft.entity.player PlayerEntity]
@@ -76,14 +74,6 @@
         (when resolved
           (swap! registry-state assoc :registered? true :item resolved))
         resolved))))
-
-(defn register-client-renderer! []
-  (when-let [type (entity-type)]
-    (EntityRendererRegistry/register
-     type
-     (reify net.minecraft.client.render.entity.EntityRendererFactory
-       (create [_ ctx]
-         (FlyingItemEntityRenderer. ctx))))))
 
 (defn item-use [^Item item ^World world ^PlayerEntity user ^Hand hand]
   (let [stack (.getStackInHand user hand)]
